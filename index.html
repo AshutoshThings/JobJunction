@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero bg-blue-500 text-white py-20 rounded-lg shadow-xl">
+    <div class="container mx-auto text-center px-4">
+        <h1 class="text-4xl md:text-5xl font-bold leading-tight mb-6">Dial. Hang up. Get Hired.</h1>
+        <p class="text-xl mb-8 max-w-2xl mx-auto">JobJunction connects daily wage laborers with local contractors quickly and efficiently.</p>
+        <div class="space-x-4">
+            <a href="{{ url_for('register') }}" class="bg-white text-blue-600 font-bold py-3 px-8 rounded-full shadow-lg hover:bg-gray-200 transition duration-300">Register as a Worker</a>
+            <a href="{{ url_for('login') }}" class="bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-blue-800 transition duration-300">Contractor Login</a>
+        </div>
+    </div>
+</section>
+
+<section class="how-it-works-summary py-16 px-4">
+    <div class="container mx-auto text-center">
+        <h2 class="text-3xl font-semibold mb-8">How JobJunction Works</h2>
+        <p class="text-lg mb-8 max-w-3xl mx-auto">JobJunction simplifies the process of finding and hiring daily wage labor. Workers register once, and contractors can quickly find available workers based on their needs.</p>
+        <a href="{{ url_for('how_it_works') }}" class="text-blue-600 hover:underline font-semibold text-lg">Learn More &rarr;</a>
+    </div>
+</section>
+
+{# Add more sections here, e.g., testimonials, features #}
+
+{% endblock %}
