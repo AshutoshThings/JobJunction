@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block content %}
+<!-- {% block content %}
 <h2 class="text-3xl font-semibold mb-6 text-center">Available Workers</h2>
 
 {# Add filtering options here later #}
@@ -21,8 +21,8 @@
         </div>
     </form>
 </div>
-#}
-
+#} -->
+<!-- 
 
 {% if workers %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -44,4 +44,49 @@
     <p class="text-center text-gray-600 text-lg">No workers currently available.</p>
 {% endif %}
 
+======= -->
+<div class="container mx-auto px-4 py-8">
+    <h2 class="text-3xl font-semibold mb-6 text-center"></h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} px-4 py-3 rounded relative" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if workers %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for worker in workers %}
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-2">{{ worker.name }}</h3>
+                    <p class="text-gray-600 mb-1"><strong>Location:</strong> {{ worker.location }}</p>
+                    <p class="text-gray-600 mb-1"><strong>Skills:</strong> {{ worker.skills }}</p>
+                    <p class="text-gray-600 mb-4"><strong>Experience:</strong> {{ worker.experience }}</p>
+
+                    {# Check the 'is_hired' flag passed from the backend #}
+                    {% if worker.is_hired %}
+                        <button class="bg-gray-400 text-white font-bold py-2 px-4 rounded cursor-not-allowed w-full" disabled>
+                            Hired
+                        </button>
+                    {% else %}
+                        <form action="{{ url_for('hire_worker', worker_id=worker.id) }}" method="POST">
+                             <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full">
+                                 Hire
+                             </button>
+                        </form>
+                    {% endif %}
+
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-center text-gray-700">No workers are currently available today.</p>
+    {% endif %}
+</div>
 {% endblock %}
