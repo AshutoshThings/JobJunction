@@ -1,33 +1,45 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, Response, session
 import json
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
-import traceback 
-from datetime import datetime 
+import traceback
+from datetime import datetime
+from twilio.rest import Client
+import re
 
 app = Flask(__name__)
-# # Configure a secret key for session management (required for flash messages)
-# # Replace with a real secret key in production
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+app.config['SECRET_KEY'] = 'your_secret_key_here' # IMPORTANT: Replace with a strong, unique secret key
 
+# --- Twilio Configuration ---
+TWILIO_ACCOUNT_SID = 'AC830df0e530773b571e9a31c63ec5053b' # Replace with your Account SID
+TWILIO_AUTH_TOKEN = 'ef64eddb3a248979ac7a4754b4395cff' # Replace with your Auth Token
+TWILIO_PHONE_NUMBER = '+17438875731' # Replace with your Twilio phone number (in E.164 format, e.g., +15551234567)
 
+try:
+    if TWILIO_ACCOUNT_SID == 'YOUR_TWILIO_ACCOUNT_SID' or TWILIO_AUTH_TOKEN == 'YOUR_TWILIO_AUTH_TOKEN' or TWILIO_PHONE_NUMBER == 'YOUR_TWILIO_PHONE_NUMBER':
+        print("Twilio credentials are not set. Please replace the placeholder values.")
+        twilio_client = None
+    else:
+        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+except Exception as e:
+    print(f"Error initializing Twilio Client: {e}")
+    twilio_client = None
+
+# --- JSON File Paths ---
 CONTRACTOR_CREDENTIALS_FILE = 'contractors.json'
 WORKER_DATA_FILE = 'workers.json'
-AVAILABLE_WORKERS_CALLS_FILE = 'available_workers_calls.json' 
+AVAILABLE_WORKERS_CALLS_FILE = 'available_workers_calls.json'
 
-
+# --- JSON Utility Functions ---
 def load_contractor_credentials():
-    """Loads contractor usernames and HASHED passwords and details from a JSON file."""
     if not os.path.exists(CONTRACTOR_CREDENTIALS_FILE):
-        
         with open(CONTRACTOR_CREDENTIALS_FILE, 'w') as f:
-            json.dump({}, f) 
+            json.dump({}, f)
         return {}
     try:
         with open(CONTRACTOR_CREDENTIALS_FILE, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError:
-        
         print(f"Error decoding JSON from {CONTRACTOR_CREDENTIALS_FILE}. File might be empty or corrupted.")
         return {}
     except Exception as e:
@@ -35,30 +47,23 @@ def load_contractor_credentials():
         traceback.print_exc()
         return {}
 
-
 def save_contractor_credentials(credentials):
-    """Saves contractor usernames and HASHED passwords and details to a JSON file."""
     try:
         with open(CONTRACTOR_CREDENTIALS_FILE, 'w') as f:
-            json.dump(credentials, f, indent=4) # Use indent for readability
+            json.dump(credentials, f, indent=4)
     except Exception as e:
         print(f"An unexpected error occurred saving to {CONTRACTOR_CREDENTIALS_FILE}: {e}")
         traceback.print_exc()
 
-
-
 def load_worker_data():
-    """Loads worker data from a JSON file."""
     if not os.path.exists(WORKER_DATA_FILE):
-        
         with open(WORKER_DATA_FILE, 'w') as f:
-            json.dump([], f) 
+            json.dump([], f)
         return []
     try:
         with open(WORKER_DATA_FILE, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError:
-        
         print(f"Error decoding JSON from {WORKER_DATA_FILE}. File might be empty or corrupted.")
         return []
     except Exception as e:
@@ -67,57 +72,48 @@ def load_worker_data():
         return []
 
 def save_worker_data(workers):
-    """Saves worker data to a JSON file."""
     try:
         with open(WORKER_DATA_FILE, 'w') as f:
-            json.dump(workers, f, indent=4) 
+            json.dump(workers, f, indent=4)
     except Exception as e:
         print(f"An unexpected error occurred saving to {WORKER_DATA_FILE}: {e}")
         traceback.print_exc()
 
-
 def load_available_workers_calls():
-    """Loads available worker call data from a JSON file."""
     if not os.path.exists(AVAILABLE_WORKERS_CALLS_FILE):
-        
         with open(AVAILABLE_WORKERS_CALLS_FILE, 'w') as f:
-            json.dump([], f) 
+            json.dump([], f)
         return []
     try:
         with open(AVAILABLE_WORKERS_CALLS_FILE, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError:
-        
         print(f"Error decoding JSON from {AVAILABLE_WORKERS_CALLS_FILE}. File might be empty or corrupted.")
         return []
     except Exception as e:
         print(f"An unexpected error occurred loading {AVAILABLE_WORKERS_CALLS_FILE}: {e}")
         traceback.print_exc()
-        return []
+        return {}
 
 def save_available_workers_calls(calls):
-    """Saves available worker call data to a JSON file."""
     try:
         with open(AVAILABLE_WORKERS_CALLS_FILE, 'w') as f:
-            json.dump(calls, f, indent=4) 
+            json.dump(calls, f, indent=4)
     except Exception as e:
         print(f"An unexpected error occurred saving to {AVAILABLE_WORKERS_CALLS_FILE}: {e}")
         traceback.print_exc()
 
+# --- Routes ---
 
 @app.route('/favicon.ico')
 def favicon():
-    """Handle favicon.ico requests by returning a 404."""
-    
     try:
         return send_from_directory(app.static_folder, 'favicon.ico')
     except FileNotFoundError:
         return Response(status=404)
 
-
 @app.route('/')
 def index():
-    """Landing Page"""
     try:
         return render_template('index.html', title='JobJunction - Connects Laborers and Contractors')
     except Exception as e:
@@ -125,10 +121,8 @@ def index():
         traceback.print_exc()
         return "An error occurred loading the homepage.", 500
 
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Worker Registration Page"""
     if request.method == 'POST':
         name = request.form.get('name')
         location = request.form.get('location')
@@ -145,7 +139,6 @@ def register():
                 traceback.print_exc()
                 return "An error occurred.", 500
 
-
         worker_data = load_worker_data()
 
         if any(worker.get('phone_number') == phone_number for worker in worker_data):
@@ -160,7 +153,6 @@ def register():
         worker_id = 1
         if worker_data:
              worker_id = max(worker.get('id', 0) for worker in worker_data) + 1
-
 
         new_worker = {
             'id': worker_id,
@@ -184,7 +176,6 @@ def register():
         traceback.print_exc()
         return "An error occurred loading the registration page.", 500
 
-
 @app.route('/contractor-register', methods=['GET', 'POST'])
 def contractor_register():
     """Contractor Registration Page"""
@@ -195,7 +186,6 @@ def contractor_register():
         phone_number = request.form.get('phone_number')
         age = request.form.get('age')
         job_type = request.form.get('job_type')
-
 
         contractor_credentials = load_contractor_credentials()
 
@@ -231,46 +221,47 @@ def contractor_register():
         traceback.print_exc()
         return "An error occurred loading the contractor registration page.", 500
 
-
 @app.route('/missed-call', methods=['GET', 'POST'])
 def missed_call():
     """Handles missed call API endpoint from Exotel or similar."""
     phone_number = request.form.get('CallerId') or request.args.get('CallerId')
     if not phone_number:
-        phone_number = request.form.get('phone_number') or request.args.get('phone_number') 
+        phone_number = request.form.get('phone_number') or request.args.get('phone_number')
     if not phone_number:
         phone_number = request.form.get('CallFrom') or request.args.get('CallFrom')
     if not phone_number:
         phone_number = request.form.get('From') or request.args.get('From')
 
-    timestamp_str = request.args.get('CurrentTime') 
-
-    print(f"Received missed call request. Method: {request.method}, Data: {request.form or request.args}")
-    print(f"Extracted phone number: {phone_number}")
-
+    timestamp_str = request.args.get('CurrentTime')
 
     if phone_number:
         available_calls_data = load_available_workers_calls()
-        worker_data = load_worker_data() 
-
-        print(f"Worker data loaded for check: {worker_data}")
+        worker_data = load_worker_data()
 
         is_registered_worker = any(worker.get('phone_number') == phone_number for worker in worker_data)
 
-        print(f"Is registered worker: {is_registered_worker}") 
-
-
         if is_registered_worker:
-            new_call_entry = {
-                'phone_number': phone_number,
-                'timestamp': timestamp_str if timestamp_str else datetime.now().isoformat()
-            }
+            # Add the missed call entry if not already available today
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            is_already_available_today = any(
+                call.get('phone_number') == phone_number and call.get('timestamp', '').startswith(today_str)
+                for call in available_calls_data
+            )
 
-            available_calls_data.append(new_call_entry)
-            save_available_workers_calls(available_calls_data)
+            if not is_already_available_today:
+                new_call_entry = {
+                    'phone_number': phone_number,
+                    'timestamp': timestamp_str if timestamp_str else datetime.now().isoformat(),
+                    'is_hired': False # Add is_hired flag, default to False
+                }
+                available_calls_data.append(new_call_entry)
+                save_available_workers_calls(available_calls_data)
+                print(f"Received missed call from registered worker: {phone_number}. Recorded as available.")
+                return 'Missed call recorded', 200
+            else:
+                print(f"Received missed call from registered worker: {phone_number}. Already marked as available today.")
+                return 'Already available today', 200
 
-            print(f"Received missed call from registered worker: {phone_number}. Recorded as available.")
-            return 'Missed call recorded', 200
         else:
             print(f"Received missed call from unregistered number: {phone_number}.")
             return 'Phone number not registered as a worker', 404
@@ -288,7 +279,7 @@ def login():
         contractor_credentials = load_contractor_credentials()
 
         if username in contractor_credentials and check_password_hash(contractor_credentials[username].get('password'), password):
-
+            session['contractor_username'] = username
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -301,35 +292,66 @@ def login():
         traceback.print_exc()
         return "An error occurred loading the login page.", 500
 
+@app.route('/logout')
+def logout():
+    """Contractor Logout"""
+    session.pop('contractor_username', None)
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('index'))
 
 @app.route('/dashboard')
-
 def dashboard():
     """Contractor Dashboard"""
+    if 'contractor_username' not in session:
+        flash('Please log in to access the dashboard.', 'warning')
+        return redirect(url_for('login'))
+
     available_calls_data = load_available_workers_calls()
     worker_data = load_worker_data()
 
+    # Filter for calls made today and not yet hired
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    available_worker_phone_numbers_today = {
+        call.get('phone_number'): call.get('is_hired', False) # Store phone and hired status
+        for call in available_calls_data
+        if call.get('phone_number') and call.get('timestamp', '').startswith(today_str)
+    }
 
-    available_phone_numbers = {call.get('phone_number') for call in available_calls_data if call.get('phone_number')}
+    # Combine worker details with their availability and hired status
+    available_workers_with_status = []
+    for worker in worker_data:
+        phone_number = worker.get('phone_number')
+        if phone_number in available_worker_phone_numbers_today:
+            is_hired = available_worker_phone_numbers_today[phone_number]
+            # Create a new dictionary with worker details and hired status
+            worker_with_status = worker.copy() # Avoid modifying original worker_data
+            worker_with_status['is_hired'] = is_hired
+            available_workers_with_status.append(worker_with_status)
 
-
-    available_workers = [
-        worker for worker in worker_data
-        if worker.get('phone_number') in available_phone_numbers
-    ]
 
     try:
-        return render_template('dashboard.html', title='Contractor Dashboard', workers=available_workers)
+        # Pass the list of available workers with their hired status to the template
+        return render_template('dashboard.html', title='Contractor Dashboard', workers=available_workers_with_status)
     except Exception as e:
         print(f"Error rendering dashboard page: {e}")
         traceback.print_exc()
         return "An error occurred loading the dashboard.", 500
 
-
 @app.route('/hire/<int:worker_id>', methods=['POST'])
-
 def hire_worker(worker_id):
     """Handles hiring a worker and sending SMS notification."""
+    if 'contractor_username' not in session:
+        flash('Please log in to hire a worker.', 'warning')
+        return redirect(url_for('login'))
+
+    contractor_username = session['contractor_username']
+    contractor_credentials = load_contractor_credentials()
+    contractor_details = contractor_credentials.get(contractor_username)
+
+    if not contractor_details:
+        flash('Contractor details not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
     worker_data = load_worker_data()
     worker_to_hire = None
     for worker in worker_data:
@@ -338,15 +360,56 @@ def hire_worker(worker_id):
             break
 
     if worker_to_hire:
+        # --- Send SMS ---
+        if twilio_client:
+            try:
+                contractor_name = contractor_details.get('name', 'A Contractor')
+                contractor_job = contractor_details.get('job_type', 'the job')
+                contractor_location = contractor_details.get('location', 'their location')
 
-        print(f"Simulating sending SMS to worker: {worker_to_hire.get('name', 'N/A')} ({worker_to_hire.get('phone_number', 'N/A')})")
-        flash(f'Notification simulated for worker {worker_to_hire.get("name", "N/A")}.', 'success')
+                worker_phone = worker_to_hire.get('phone_number')
+
+                cleaned_phone_number = re.sub(r'\D', '', worker_phone)
+                if cleaned_phone_number.startswith('0'):
+                    cleaned_phone_number = cleaned_phone_number[1:]
+
+                formatted_worker_phone = '+91' + cleaned_phone_number # Assuming Indian numbers
+
+                message_body = f"Congratulations, you have been hired for today by {contractor_name} for the job: {contractor_job} at {contractor_location}."
+
+                message = twilio_client.messages.create(
+                    body=message_body,
+                    from_=TWILIO_PHONE_NUMBER,
+                    to=formatted_worker_phone
+                )
+                print(f"SMS sent to {formatted_worker_phone}. SID: {message.sid}")
+                flash(f'Notification sent to {worker_to_hire.get("name", "N/A")}.', 'success')
+
+                # --- Update is_hired flag in available_workers_calls.json ---
+                available_calls_data = load_available_workers_calls()
+                today_str = datetime.now().strftime('%Y-%m-%d')
+                for call in available_calls_data:
+                    # Find the specific call entry for this worker today and mark as hired
+                    if call.get('phone_number') == worker_to_hire.get('phone_number') and call.get('timestamp', '').startswith(today_str):
+                        call['is_hired'] = True
+                        break # Assuming only one call per worker per day needs to be marked
+
+                save_available_workers_calls(available_calls_data)
+                print(f"Marked worker {worker_to_hire.get('phone_number')} as hired in available calls.")
+                # --- End Update ---
+
+
+            except Exception as e:
+                print(f"Failed to send SMS to {worker_to_hire.get('phone_number')}: {e}")
+                flash(f'Failed to send notification to {worker_to_hire.get("name", "N/A")}. Error: {e}', 'danger')
+        else:
+            print("Twilio client not initialized. Cannot send SMS.")
+            flash('SMS service is not available. Cannot send notification.', 'danger')
 
     else:
         flash('Worker not found.', 'danger')
 
     return redirect(url_for('dashboard'))
-
 
 @app.route('/how-it-works')
 def how_it_works():
@@ -358,6 +421,7 @@ def how_it_works():
         traceback.print_exc()
         return "An error occurred loading the 'How It Works' page.", 500
 
+# --- Error Handlers ---
 @app.errorhandler(404)
 def page_not_found(e):
     try:
@@ -366,7 +430,6 @@ def page_not_found(e):
         print(f"Error rendering 404.html template: {render_error}")
         traceback.print_exc()
         return "Page not found and the error page could not be rendered.", 404
-
 
 @app.errorhandler(500)
 def internal_server_error(e):
@@ -379,9 +442,8 @@ def internal_server_error(e):
         traceback.print_exc()
         return "An internal server error occurred and the error page could not be rendered.", 500
 
-
 if __name__ == '__main__':
     load_contractor_credentials()
     load_worker_data()
-    load_available_workers_calls() 
+    load_available_workers_calls()
     app.run(debug=True)
