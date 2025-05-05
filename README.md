@@ -41,7 +41,7 @@ Job Junction is a lightweight platform that connects **labour contractors** with
 ```
 #Project Structure
 ```
-job-junction/
+JobJunction/
 ├── templates/                  # all the htmls 
 ├── static/                     # contains all the image files
 ├── available_workers_calls.json  # Stores missed call data (available workers)
